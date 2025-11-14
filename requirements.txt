@@ -1,5 +1,6 @@
-transformers==4.25.1
+transformers==4.22.1
 sentence-transformers==2.2.0
 streamlit==1.10.0
 python-dotenv==0.19.2
+
 
