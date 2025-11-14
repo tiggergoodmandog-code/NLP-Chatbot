@@ -3,3 +3,4 @@ sentence-transformers==2.2.0
 streamlit==1.10.0
 python-dotenv==0.19.2
 altair==4.2.2
+huggingface_hub==0.12.0
