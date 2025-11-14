@@ -7,11 +7,19 @@ import os
 
 load_dotenv()
 
-# โหลดโมเดล
-model = SentenceTransformer('all-MiniLM-L6-v2')
-generator = pipeline('text-generation', model='distilgpt2')
+# ----------------- โหลดโมเดล -----------------
+@st.cache_resource
+def load_embedding_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
 
-# Corpus ข้อมูล Python
+@st.cache_resource
+def load_generator_model():
+    return pipeline('text-generation', model='distilgpt2')
+
+model = load_embedding_model()
+generator = load_generator_model()
+
+# ----------------- Corpus ข้อมูล Python -----------------
 corpus = [
     "Python uses dynamic typing, meaning you don't need to declare variable types explicitly.",
     "A list in Python can store multiple data types within the same structure.",
@@ -35,40 +43,51 @@ corpus = [
     "pip is the standard package manager for installing and managing Python packages."
 ]
 
-# Encode corpus
 corpus_embeddings = model.encode(corpus)
 
-# ฟังก์ชันหาความเหมือน
+# ----------------- ฟังก์ชันช่วยเหลือ -----------------
 def cosine_similarity(query_embedding, corpus_embeddings):
     dot_product = np.dot(corpus_embeddings, query_embedding.T)
     query_norm = np.linalg.norm(query_embedding)
     corpus_norms = np.linalg.norm(corpus_embeddings, axis=1)
     return dot_product / (corpus_norms * query_norm)
 
-# ฟังก์ชันดึงข้อมูลที่เกี่ยวข้องจาก corpus
 def retrieve(query, top_k=2):
-    query_embedding = model.encode(query)
-    similarities = cosine_similarity(query_embedding, corpus_embeddings)
+    query_embedding = model.encode([query])
+    similarities = cosine_similarity(query_embedding[0], corpus_embeddings)
     top_k_indices = similarities.argsort()[-top_k:][::-1]
     return [corpus[i] for i in top_k_indices]
 
-# ฟังก์ชันสร้างคำตอบ
 def generate_answer(query):
     retrieved_docs = retrieve(query)
     context = "\n".join(retrieved_docs)
-    prompt = f"Answer the question based on the context below:\n{context}\n\nQuestion: {query}\nAnswer:"
+    prompt = f"Answer the question based only on the context below:\n{context}\n\nQuestion: {query}\nAnswer:"
     response = generator(prompt, max_length=150, num_return_sequences=1)
     return response[0]['generated_text'].strip()
 
-# Streamlit UI
-st.set_page_config(page_title="Python Chatbot", page_icon=":robot:", layout="wide")
-st.title(":robot: Python Programming Chatbot")
-st.write("Ask me anything about Python programming!")
+# ----------------- Streamlit UI -----------------
+st.set_page_config(page_title="Python Chatbot", page_icon=":snake:", layout="wide")
+st.title("🐍 Python Programming Chatbot")
+st.markdown("Ask me anything about Python programming!")
 
-# Input
-user_input = st.text_input("Your question:", "")
+# เก็บประวัติการสนทนา
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-if st.button("Ask") and user_input:
+# แสดงข้อความเก่า
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+# กล่อง input
+if user_input := st.chat_input("Type your question here..."):
+    # บันทึกข้อความผู้ใช้
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.chat_message("user").write(user_input)
+
+    # สร้างคำตอบ
     with st.spinner("Generating answer..."):
         answer = generate_answer(user_input)
-    st.markdown(f"**Chatbot:** {answer}")
+
+    # บันทึกข้อความ chatbot
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.chat_message("assistant").write(answer)
